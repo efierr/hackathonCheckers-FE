@@ -61,11 +61,11 @@
 }
 
 .square.black {
-  background-color: #769656;
+  background-color: #000000;
 }
 
 .square.white {
-  background-color: #eeeed2;
+  background-color: #ffffff;
 }
 
 .piece {
@@ -75,6 +75,10 @@
   display: flex;
   justify-content: center;
   align-items: center;
+}
+.piece img {
+  width: 40px;
+  height: 40px;
 }
 
 .piece.black {
