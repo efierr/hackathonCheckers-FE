@@ -1,6 +1,5 @@
 import React from "react";
 import Piece from "./Piece";
-import "./Square.css";
 
 const Square = ({ isBlack, piece, onClick }) => {
   return (
