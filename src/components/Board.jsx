@@ -245,7 +245,7 @@ const Board = () => {
   return (
     <div className="game-container">
       <div className="status">
-        {winner ? winner : `Current Player: ${currentPlayer}`}
+        {winner ? winner : `Current Player: ${currentPlayer === 'red'? 'Blue' : 'Yellow'}`}
       </div>
       <div className="board">{createBoard()}</div>
       <SuggestionBtn 
