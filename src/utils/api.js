@@ -1,4 +1,5 @@
 import axios from "axios";
+import { mapGameStateToArray } from './helpers';
 
 const apiUrl = "http://localhost:3040/bestmove";
 const aiMoveUrl = "http://localhost:3040/botmove";
