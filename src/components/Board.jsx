@@ -145,12 +145,43 @@ const Board = () => {
             // Set the new position as the selected piece for the next jump
             setSelectedPiece({ row, col, isDoubleJumping: true });
             setGameState(newGameState);
+
+            // Console log to display the board state after the first jump
+            console.log("Current Board State (After First Jump):");
+            newGameState.forEach((row, index) => {
+              console.log(
+                `Row ${index}:`,
+                row
+                  .map((piece) =>
+                    piece
+                      ? piece.color[0].toUpperCase() + (piece.isKing ? "K" : "")
+                      : "-"
+                  )
+                  .join(" ")
+              );
+            });
+
             return; // Don't end the turn yet
           }
         }
 
         // If it's not a jump or no double jump is available, finish the turn
         finishTurn(newGameState);
+
+        // Console log to display the final board state after the move
+        console.log("Current Board State (After Move):");
+        newGameState.forEach((row, index) => {
+          console.log(
+            `Row ${index}:`,
+            row
+              .map((piece) =>
+                piece
+                  ? piece.color[0].toUpperCase() + (piece.isKing ? "K" : "")
+                  : "-"
+              )
+              .join(" ")
+          );
+        });
       } else if (piece && piece.color === currentPlayer) {
         // If clicking on another of the current player's pieces, select it
         setSelectedPiece({ row, col });
