@@ -1,10 +1,22 @@
+// Add this helper function at the top
+const isWithinBoard = (row, col) => {
+  return row >= 0 && row < 8 && col >= 0 && col < 8;
+};
+
 // Function to validate if a move is legal based on checkers rules
 export const isValidMove = (from, toRow, toCol, gameState, currentPlayer) => {
+  // First check if the move is within board boundaries
+  if (!isWithinBoard(toRow, toCol) || !isWithinBoard(from.row, from.col)) {
+    return false;
+  }
+
   // Check if destination square is empty
   if (gameState[toRow][toCol] !== null) return false;
 
   // Get the piece that's trying to move
   const piece = gameState[from.row][from.col];
+  if (!piece) return false; // Add check for piece existence
+
   // Calculate absolute distance of movement in rows
   const moveDistance = Math.abs(from.row - toRow);
   // Calculate absolute distance of movement in columns
@@ -66,12 +78,12 @@ export const isValidMove = (from, toRow, toCol, gameState, currentPlayer) => {
     directions.forEach(rowDir => {
       [-1, 1].forEach(colDir => {
         // Check regular move
-        if (isValidMove(row, col, row + rowDir, col + colDir, gameState, currentPlayer)) {
+        if (isValidMove({row, col}, row + rowDir, col + colDir, gameState, currentPlayer)) {
           possibleMoves.push({ toRow: row + rowDir, toCol: col + colDir, isJump: false });
         }
         
         // Check jump move
-        if (isValidMove(row, col, row + (2 * rowDir), col + (2 * colDir), gameState, currentPlayer)) {
+        if (isValidMove({row, col}, row + (2 * rowDir), col + (2 * colDir), gameState, currentPlayer)) {
           possibleMoves.push({ toRow: row + (2 * rowDir), toCol: col + (2 * colDir), isJump: true });
         }
       });
@@ -88,8 +100,8 @@ export const isValidMove = (from, toRow, toCol, gameState, currentPlayer) => {
   // Get the position of the jumped piece
   export const getJumpedPiecePosition = (fromRow, fromCol, toRow, toCol) => {
     return {
-      row: fromRow + (toRow - fromRow) / 2,
-      col: fromCol + (toCol - fromCol) / 2
+      row: Math.floor((fromRow + toRow) / 2),
+      col: Math.floor((fromCol + toCol) / 2)
     };
   };
   
@@ -113,4 +125,16 @@ export const isValidMove = (from, toRow, toCol, gameState, currentPlayer) => {
       if (piece.color === 'black') return piece.isKing ? 'B' : 'b';
       if (piece.color === 'red') return piece.isKing ? 'R' : 'r';
     });
+  };
+
+  // Check if a square should be highlighted (selected piece)
+  export const isHighlighted = (row, col, selectedPiece) => {
+    if (!selectedPiece) return false;
+    return selectedPiece.row === row && selectedPiece.col === col;
+  };
+
+  // Check if a square is a possible move
+  export const isPossibleMove = (row, col, possibleMoves) => {
+    if (!possibleMoves || !possibleMoves.length) return false;
+    return possibleMoves.some(move => move.toRow === row && move.toCol === col);
   };

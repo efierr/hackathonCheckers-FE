@@ -1,0 +1,46 @@
+.square {
+  width: 60px;
+  height: 60px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Base square colors */
+.square.black {
+  background-color: #769656;
+}
+
+.square.white {
+  background-color: #eeeed2;
+}
+
+/* Selected piece highlights */
+.highlight-red {
+  background-image: url('../assets/blue-highlight.jpg');
+  background-size: cover;
+  background-position: center;
+}
+
+.highlight-black {
+  background-image: url('../assets/yellow-highlight.jpg');
+  background-size: cover;
+  background-position: center;
+}
+
+
+/* Possible move indicator */
+.possible-move::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  background-color: rgba(144, 238, 144, 0.6); /* Light green with transparency */
+  border-radius: 50%;
+  z-index: 1;
+  pointer-events: none;
+}
