@@ -60,7 +60,6 @@ const Board = () => {
   const [gameState, setGameState] = useState(Array(boardSize).fill().map(() => Array(8).fill(null)));
   
   //console logs to visualize the game state and the array representation to be sent to AI
-  console.log("Game State:", gameState);
   console.log("Array Representation:", mapGameStateToArray(gameState));
   
   // Effect to check for a winner after each move
@@ -295,7 +294,6 @@ const Board = () => {
     const bestMove = await getBestMove(gameState, gameSettings.playerColor);
     setSuggestedMove(bestMove);
   };
-
   // Update the AI move useEffect
   useEffect(() => {
     const makeAIMove = async () => {
@@ -306,47 +304,48 @@ const Board = () => {
 
       if (isAITurn) {
         setIsAIThinking(true);
+        
+        // Add timeout before making the AI move
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
         try {
           // Log the current game state being sent to AI
           console.log("Sending game state to AI:", mapGameStateToArray(gameState));
-          
+
           const aiColor = gameSettings.playerColor === 'red' ? 'black' : 'red';
+          console.log("Sending game state to AI:", gameState);
+          
           const suggestedAi = await getAIMoveWithDifficulty(
-            mapGameStateToArray(gameState),
+            gameState,
             aiColor,
             gameSettings.difficulty
           );
+          
+          console.log("AI suggested move:", suggestedAi);
           
           if (suggestedAi) {
             const [fromCoord, toCoord] = suggestedAi.split(" ");
             const [fromRow, fromCol] = fromCoord.split(",").map(Number);
             const [toRow, toCol] = toCoord.split(",").map(Number);
 
-            // Adjust coordinates
-            const adjustedFromRow = fromRow ;
-            const adjustedFromCol = fromCol-1 ;
-            const adjustedToRow = toRow ;
-            const adjustedToCol = toCol -1;
-
             const moveResult = executeMove(
-              { row: adjustedFromRow, col: adjustedFromCol },
-              adjustedToRow,
-              adjustedToCol,
+              { row: fromRow, col: fromCol-1 },
+              toRow,
+              toCol-1,
               gameState
             );
 
             let newGameState = moveResult.newGameState;
 
-            if (newGameState[adjustedToRow]?.[adjustedToCol]) {
-              if (shouldCrownPiece(adjustedToRow, newGameState[adjustedToRow][adjustedToCol])) {
-                newGameState[adjustedToRow][adjustedToCol].isKing = true;
+            if (newGameState[toRow]?.[toCol]) {
+              if (shouldCrownPiece(toRow, newGameState[toRow][toCol])) {
+                newGameState[toRow][toCol].isKing = true;
               }
             }
 
-            // Set the AI's move for highlighting
             setAiLastMove({
-              from: { row: adjustedFromRow, col: adjustedFromCol },
-              to: { row: adjustedToRow, col: adjustedToCol }
+              from: { row: fromRow, col: fromCol-1 },
+              to: { row: toRow, col: toCol-1 }
             });
 
             setGameState(newGameState);
@@ -354,14 +353,20 @@ const Board = () => {
           }
         } catch (error) {
           console.error('Error making AI move:', error);
-          console.error('Error details:', error.stack); // Add stack trace
         } finally {
           setIsAIThinking(false);
         }
       }
     };
 
-    makeAIMove();
+    // Add debounce to prevent multiple rapid calls
+    const timeoutId = setTimeout(() => {
+      if (!isAIThinking) {
+        makeAIMove();
+      }
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
   }, [gameSettings.mode, gameSettings.playerColor, gameSettings.difficulty, gameState, winner, isPlayerTurn]);
 
   // Game mode selection UI

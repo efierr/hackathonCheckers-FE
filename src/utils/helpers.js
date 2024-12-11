@@ -196,24 +196,7 @@ export const getPossibleMoves = (row, col, gameState, currentPlayer) => {
 
   // Update mapGameStateToArray to handle the board structure correctly
   export const mapGameStateToArray = (gameState) => {
-    if (!gameState) return Array(8).fill().map(() => Array(8).fill(''));
-    
-    const boardMatrix = [];
-    for (let row = 0; row < 8; row++) {
-      const currentRow = [];
-      for (let col = 0; col < 8; col++) {
-        const piece = gameState[row][col];
-        if (!piece) {
-          currentRow.push('');  // Empty square
-        } else if (piece.color === 'black') {
-          currentRow.push(piece.isKing ? 'B' : 'b');  // Black pieces
-        } else if (piece.color === 'red') {
-          currentRow.push(piece.isKing ? 'R' : 'r');  // Red pieces
-        }
-      }
-      boardMatrix.push(currentRow);
-    }
-    return boardMatrix;
+    return gameState; // Simply return the game state as is
   };
 
   // Check if a square should be highlighted (selected piece)
