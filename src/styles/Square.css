@@ -9,7 +9,7 @@
 
 /* Base square colors */
 .square.black {
-  background-color: #769656;
+  background-color: #b01717;
 }
 
 .square.white {
@@ -39,10 +39,13 @@
   transform: translate(-50%, -50%);
   width: 20px;
   height: 20px;
-  background-color: rgba(144, 238, 144, 0.6); /* Light green with transparency */
+  background-color: rgba(250, 4, 4, 0.6); /* Light green with transparency */
   border-radius: 50%;
   z-index: 1;
-  pointer-events: none;
+  pointer-events: none; 
+  /* background-image: url('../assets/blue-highlight.jpg'); */
+  background-size: cover;
+  background-position: center;
 }
 
 /* Must jump indicator */
