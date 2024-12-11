@@ -44,3 +44,36 @@
   z-index: 1;
   pointer-events: none;
 }
+
+/* Must jump indicator */
+.must-jump {
+  position: relative;
+}
+
+.must-jump::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 3px solid #ff4444;
+  border-radius: 4px;
+  animation: pulse 1.5s infinite;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

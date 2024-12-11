@@ -89,7 +89,6 @@ export const getPossibleMoves = (row, col, gameState, currentPlayer) => {
 
   if (!piece || piece.color !== currentPlayer) return [];
 
-  // Directions for movement
   const directions = piece.isKing ? 
     [
       { rowDir: -1, colDir: -1 }, // up-left
@@ -101,8 +100,8 @@ export const getPossibleMoves = (row, col, gameState, currentPlayer) => {
       [{ rowDir: -1, colDir: -1 }, { rowDir: -1, colDir: 1 }] :  // red moves up
       [{ rowDir: 1, colDir: -1 }, { rowDir: 1, colDir: 1 }];     // black moves down
 
-  // Check for available jumps first
-  let hasJumps = false;
+  // First, check for available jumps
+  const jumps = [];
   directions.forEach(({ rowDir, colDir }) => {
     const jumpRow = row + (2 * rowDir);
     const jumpCol = col + (2 * colDir);
@@ -113,8 +112,7 @@ export const getPossibleMoves = (row, col, gameState, currentPlayer) => {
         gameState[jumpRow][jumpCol] === null && 
         gameState[jumpedRow][jumpedCol]?.color !== currentPlayer && 
         gameState[jumpedRow][jumpedCol] !== null) {
-      hasJumps = true;
-      possibleMoves.push({
+      jumps.push({
         toRow: jumpRow,
         toCol: jumpCol,
         isJump: true
@@ -123,7 +121,7 @@ export const getPossibleMoves = (row, col, gameState, currentPlayer) => {
   });
 
   // If no jumps are available, check for regular moves
-  if (!hasJumps) {
+  if (jumps.length === 0) {
     directions.forEach(({ rowDir, colDir }) => {
       let currentRow = row;
       let currentCol = col;
@@ -160,6 +158,9 @@ export const getPossibleMoves = (row, col, gameState, currentPlayer) => {
         }
       }
     });
+  } else {
+    // If jumps are available, only allow jumps
+    possibleMoves.push(...jumps);
   }
 
   return possibleMoves;
