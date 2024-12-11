@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { isValidMove } from "../utils/moves";
+import { isValidMove, mapGameStateToArray, isHighlighted, isPossibleMove, getPossibleMoves, getJumpedPiecePosition, shouldCrownPiece, hasAvailableJumps } from "../utils/helpers";
 import Square from "./Square";
+import { getBestMove } from '../utils/api';
+import SuggestionBtn from './suggestionBtn';
 
 const Board = () => {
   const boardSize = 8;
@@ -12,9 +14,13 @@ const Board = () => {
   const [winner, setWinner] = useState(null);
   //state to store when a double jump is available
   const [doubleJumpAvailable, setDoubleJumpAvailable] = useState(false);
+  // State to store possible moves
+  const [possibleMoves, setPossibleMoves] = useState([]);
+  const [piecesWithJumps, setPiecesWithJumps] = useState([]);
 
   // State for the game board, initialized with a function
   const [gameState, setGameState] = useState(() => {
+
     // Create an empty 8x8 board
     const initialState = Array(boardSize)
       .fill()
@@ -40,6 +46,10 @@ const Board = () => {
 
     return initialState;
   });
+  
+  //console logs to visualize the game state and the array representation to be sent to AI
+  console.log(gameState);
+  console.log(mapGameStateToArray(gameState));
 
   // Effect to check for a winner after each move
   useEffect(() => {
@@ -93,71 +103,64 @@ const Board = () => {
   const handleSquareClick = (row, col) => {
     const piece = gameState[row][col];
 
-    if (selectedPiece === null) {
-      // If no piece is selected, select the current player's piece
-      if (piece && piece.color === currentPlayer) {
-        setSelectedPiece({ row, col });
-      }
-    } else {
-      // If a piece is already selected
-      if (isValidMove(selectedPiece, row, col, gameState, currentPlayer)) {
-        // Execute the move
-        let newGameState = [...gameState];
-        newGameState[row][col] =
-          newGameState[selectedPiece.row][selectedPiece.col];
-        newGameState[selectedPiece.row][selectedPiece.col] = null;
+    // If a piece is already selected
+    if (selectedPiece) {
+      if (isPossibleMove(row, col, possibleMoves)) {
+        // Handle the move logic here
+        const newGameState = [...gameState];
+        const fromRow = selectedPiece.row;
+        const fromCol = selectedPiece.col;
 
-        // Check if the move was a jump
-        if (Math.abs(selectedPiece.row - row) === 2) {
+        // Move the piece
+        newGameState[row][col] = newGameState[fromRow][fromCol];
+        newGameState[fromRow][fromCol] = null;
+
+        // Check if it's a jump move
+        const move = possibleMoves.find(move => move.toRow === row && move.toCol === col);
+        if (move.isJump) {
           // Remove the jumped piece
-          const jumpedRow = (selectedPiece.row + row) / 2;
-          const jumpedCol = (selectedPiece.col + col) / 2;
-          newGameState[jumpedRow][jumpedCol] = null;
+          const jumpedPosition = getJumpedPiecePosition(fromRow, fromCol, row, col);
+          newGameState[jumpedPosition.row][jumpedPosition.col] = null;
 
-          // Check if this was the second jump
-          if (selectedPiece.isDoubleJumping) {
-            // End the turn after the second jump
-            finishTurn(newGameState);
-            return;
-          }
-
-          // Check for double jump opportunity
-          const directions = [
-            { dr: -2, dc: -2 },
-            { dr: -2, dc: 2 },
-            { dr: 2, dc: -2 },
-            { dr: 2, dc: 2 },
-          ];
-
-          const doubleJumpAvailable = directions.some(({ dr, dc }) => {
-            const newRow = row + dr;
-            const newCol = col + dc;
-            return isValidMove(
-              { row, col },
-              newRow,
-              newCol,
-              newGameState,
-              currentPlayer
-            );
-          });
-
-          if (doubleJumpAvailable) {
-            // Set the new position as the selected piece for the next jump
-            setSelectedPiece({ row, col, isDoubleJumping: true });
+          // Check for additional jumps
+          const additionalJumps = getPossibleMoves(row, col, newGameState, currentPlayer)
+            .filter(m => m.isJump);
+          
+          if (additionalJumps.length > 0) {
+            // Allow for another jump
+            setSelectedPiece({ row, col });
+            setPossibleMoves(additionalJumps);
             setGameState(newGameState);
-            return; // Don't end the turn yet
+            return;
           }
         }
 
-        // If it's not a jump or no double jump is available, finish the turn
-        finishTurn(newGameState);
-      } else if (piece && piece.color === currentPlayer) {
-        // If clicking on another of the current player's pieces, select it
-        setSelectedPiece({ row, col });
-      } else {
-        // If an invalid move, deselect the piece
+        // Crown the piece if it reaches the opposite end
+        if (shouldCrownPiece(row, newGameState[row][col])) {
+          newGameState[row][col].isKing = true;
+        }
+
+        // Update the game state
+        setGameState(newGameState);
         setSelectedPiece(null);
+        setPossibleMoves([]);
+        setCurrentPlayer(currentPlayer === 'red' ? 'black' : 'red');
+      } else {
+        setSelectedPiece(null);
+        setPossibleMoves([]);
       }
+    } else if (piece?.color === currentPlayer) {
+      // Check if there are any jumps available for the current player
+      const hasJumps = hasAvailableJumps(gameState, currentPlayer);
+      const pieceMoves = getPossibleMoves(row, col, gameState, currentPlayer);
+      
+      // If jumps are available, only allow selecting pieces that can jump
+      if (hasJumps && !pieceMoves.some(move => move.isJump)) {
+        return; // Can't select this piece when jumps are available elsewhere
+      }
+
+      setSelectedPiece({ row, col });
+      setPossibleMoves(pieceMoves);
     }
   };
 
@@ -172,6 +175,29 @@ const Board = () => {
     setCurrentPlayer(currentPlayer === "red" ? "black" : "red");
   };
 
+  // Add this function to find all pieces that can jump
+  const findPiecesWithJumps = (gameState, currentPlayer) => {
+    const pieces = [];
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const piece = gameState[row][col];
+        if (piece?.color === currentPlayer) {
+          const moves = getPossibleMoves(row, col, gameState, currentPlayer);
+          if (moves.some(move => move.isJump)) {
+            pieces.push({ row, col });
+          }
+        }
+      }
+    }
+    return pieces;
+  };
+
+  // Update this useEffect to check for pieces that must jump
+  useEffect(() => {
+    const pieces = findPiecesWithJumps(gameState, currentPlayer);
+    setPiecesWithJumps(pieces);
+  }, [gameState, currentPlayer]);
+
   // Function to create the board UI
   const createBoard = () => {
     const board = [];
@@ -180,9 +206,10 @@ const Board = () => {
       for (let col = 0; col < boardSize; col++) {
         // Determine if the square should be black
         const isBlack = (row + col) % 2 === 0;
-        // Check if this square contains the selected piece
-        const isSelected =
-          selectedPiece?.row === row && selectedPiece?.col === col;
+        const isSelected = selectedPiece?.row === row && selectedPiece?.col === col;
+        const mustJump = piecesWithJumps.some(
+          piece => piece.row === row && piece.col === col
+        );
 
         // Create a Square component for each position
         rowSquares.push(
@@ -192,6 +219,10 @@ const Board = () => {
             piece={gameState[row][col]}
             isSelected={isSelected}
             onClick={() => handleSquareClick(row, col)}
+            highlight={isHighlighted(row, col, selectedPiece)}
+            isPossibleMove={isPossibleMove(row, col, possibleMoves)}
+            currentPlayer={currentPlayer}
+            mustJump={mustJump}
           />
         );
       }
@@ -205,13 +236,21 @@ const Board = () => {
     return board;
   };
 
-  // Render the game board and status
+  const handleGetSuggestion = async () => {
+    const bestMove = await getBestMove(gameState, currentPlayer);
+    setSuggestedMove(bestMove);
+  };
+
   return (
     <div className="game-container">
       <div className="status">
         {winner ? winner : `Current Player: ${currentPlayer}`}
       </div>
       <div className="board">{createBoard()}</div>
+      <SuggestionBtn 
+        onGetSuggestion={handleGetSuggestion}
+        disabled={!!winner}
+      />
     </div>
   );
 };
