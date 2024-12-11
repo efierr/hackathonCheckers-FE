@@ -1,15 +1,16 @@
-import { useState } from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Board from "./components/Board";
-import reactLogo from "./assets/react.svg";
-import viteLogo from "/vite.svg";
+import Homepage from "./components/Homepage";
 import "./App.css";
 
 function App() {
-  console.log(<Board />);
   return (
-    <>
-      <Board />
-    </>
+    <Router>
+      <Routes>
+        <Route path="/" element={<Homepage />} />
+        <Route path="/game" element={<Board />} />
+      </Routes>
+    </Router>
   );
 }
 
