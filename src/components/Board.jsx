@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { isValidMove } from "../utils/moves";
+import { isValidMove, executeMove, hasAdditionalJumps } from "../utils/moves";
 import Square from "./Square";
 
 const Board = () => {
@@ -10,8 +10,6 @@ const Board = () => {
   const [currentPlayer, setCurrentPlayer] = useState("red");
   // State to store the winner of the game
   const [winner, setWinner] = useState(null);
-  //state to store when a double jump is available
-  const [doubleJumpAvailable, setDoubleJumpAvailable] = useState(false);
 
   // State for the game board, initialized with a function
   const [gameState, setGameState] = useState(() => {
@@ -91,116 +89,90 @@ const Board = () => {
 
   // Function to handle square clicks
   const handleSquareClick = (row, col) => {
-    const piece = gameState[row][col];
+    console.log(`Square clicked: (${row}, ${col})`);
+
+    if (!gameState) {
+      console.error("Game state is undefined");
+      return;
+    }
 
     if (selectedPiece === null) {
-      // If no piece is selected, select the current player's piece
-      if (piece && piece.color === currentPlayer) {
+      // Selecting a piece
+      if (gameState[row][col] && gameState[row][col].color === currentPlayer) {
+        console.log(`Selected piece at (${row}, ${col})`);
         setSelectedPiece({ row, col });
       }
     } else {
-      // If a piece is already selected
+      // Moving a piece
       if (isValidMove(selectedPiece, row, col, gameState, currentPlayer)) {
-        // Execute the move
-        let newGameState = [...gameState];
-        newGameState[row][col] =
-          newGameState[selectedPiece.row][selectedPiece.col];
-        newGameState[selectedPiece.row][selectedPiece.col] = null;
+        console.log("Valid move detected");
+        const { newGameState, jumpMade } = executeMove(
+          selectedPiece,
+          row,
+          col,
+          gameState,
+          currentPlayer
+        );
 
-        // Check if the move was a jump
-        if (Math.abs(selectedPiece.row - row) === 2) {
-          // Remove the jumped piece
-          const jumpedRow = (selectedPiece.row + row) / 2;
-          const jumpedCol = (selectedPiece.col + col) / 2;
-          newGameState[jumpedRow][jumpedCol] = null;
-
-          // Check if this was the second jump
-          if (selectedPiece.isDoubleJumping) {
-            // End the turn after the second jump
-            finishTurn(newGameState);
-            return;
-          }
-
-          // Check for double jump opportunity
-          const directions = [
-            { dr: -2, dc: -2 },
-            { dr: -2, dc: 2 },
-            { dr: 2, dc: -2 },
-            { dr: 2, dc: 2 },
-          ];
-
-          const doubleJumpAvailable = directions.some(({ dr, dc }) => {
-            const newRow = row + dr;
-            const newCol = col + dc;
-            return isValidMove(
-              { row, col },
-              newRow,
-              newCol,
-              newGameState,
-              currentPlayer
-            );
-          });
-
-          if (doubleJumpAvailable) {
-            // Set the new position as the selected piece for the next jump
-            setSelectedPiece({ row, col, isDoubleJumping: true });
+        if (jumpMade) {
+          console.log("Jump made, checking for additional jumps");
+          const additionalJumps = hasAdditionalJumps(
+            row,
+            col,
+            newGameState,
+            currentPlayer
+          );
+          if (additionalJumps) {
+            console.log("Additional jumps available");
             setGameState(newGameState);
-
-            // Console log to display the board state after the first jump
-            console.log("Current Board State (After First Jump):");
-            newGameState.forEach((row, index) => {
-              console.log(
-                `Row ${index}:`,
-                row
-                  .map((piece) =>
-                    piece
-                      ? piece.color[0].toUpperCase() + (piece.isKing ? "K" : "")
-                      : "-"
-                  )
-                  .join(" ")
-              );
-            });
-
-            return; // Don't end the turn yet
+            setSelectedPiece({ row, col, mustJump: true });
+          } else {
+            console.log("No additional jumps, ending turn");
+            const turnResult = finishTurn(newGameState, currentPlayer);
+            console.log("Turn result:", turnResult);
+            if (turnResult && turnResult.gameState) {
+              setGameState(turnResult.gameState);
+              setCurrentPlayer(turnResult.currentPlayer);
+              setSelectedPiece(null);
+            } else {
+              console.error("Invalid turn result:", turnResult);
+            }
+          }
+        } else {
+          console.log("Regular move, ending turn");
+          const turnResult = finishTurn(newGameState, currentPlayer);
+          console.log("Turn result:", turnResult);
+          if (turnResult && turnResult.gameState) {
+            setGameState(turnResult.gameState);
+            setCurrentPlayer(turnResult.currentPlayer);
+            setSelectedPiece(null);
+          } else {
+            console.error("Invalid turn result:", turnResult);
           }
         }
-
-        // If it's not a jump or no double jump is available, finish the turn
-        finishTurn(newGameState);
-
-        // Console log to display the final board state after the move
-        console.log("Current Board State (After Move):");
-        newGameState.forEach((row, index) => {
-          console.log(
-            `Row ${index}:`,
-            row
-              .map((piece) =>
-                piece
-                  ? piece.color[0].toUpperCase() + (piece.isKing ? "K" : "")
-                  : "-"
-              )
-              .join(" ")
-          );
-        });
-      } else if (piece && piece.color === currentPlayer) {
-        // If clicking on another of the current player's pieces, select it
-        setSelectedPiece({ row, col });
       } else {
-        // If an invalid move, deselect the piece
+        console.log("Invalid move");
         setSelectedPiece(null);
       }
     }
   };
 
-  const finishTurn = (newGameState) => {
+  const finishTurn = (newGameState, currentPlayer) => {
+    console.log("Finishing turn");
+
     // Check for new kings
     newGameState = checkForKing(newGameState);
-    // Update the game state
-    setGameState(newGameState);
-    // Deselect the piece
-    setSelectedPiece(null);
+
     // Switch to the other player
-    setCurrentPlayer(currentPlayer === "red" ? "black" : "red");
+    const nextPlayer = currentPlayer === "red" ? "black" : "red";
+
+    console.log(`Next player: ${nextPlayer}`);
+    return {
+      gameState: newGameState,
+      currentPlayer: nextPlayer,
+      selectedPiece: null,
+      jumpCount: 0,
+    };
   };
 
   // Function to create the board UI
