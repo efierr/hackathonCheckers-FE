@@ -4,7 +4,7 @@ import yellow from "../assets/yellow.png"
 
 const Piece = ({ color, isKing }) => {
   return (
-    <div class= "piece">
+    <div className= "piece">
     {color === "red" ? <img src={red} alt="red" /> : <img src={yellow} alt="yellow" />}
     </div>
     // <div className={`piece ${color} ${isKing ? "king" : ""}`}>
