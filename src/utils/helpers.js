@@ -1,50 +1,57 @@
-// Check if a move is valid
-export const isValidMove = (fromRow, fromCol, toRow, toCol, gameState, currentPlayer) => {
-    // Check if destination is within bounds
-    if (toRow < 0 || toRow >= 8 || toCol < 0 || toCol >= 8) return false;
-  
-    // Check if destination square is empty
-    if (gameState[toRow][toCol] !== null) return false;
-  
-    // Check if piece exists at the from position
-    const piece = gameState[fromRow][fromCol];
-    if (!piece) return false;
-  
-    // Check if piece belongs to current player
-    if (piece.color !== currentPlayer) return false;
-  
-    // Calculate move distance
-    const rowDiff = toRow - fromRow;
-    const colDiff = Math.abs(toCol - fromCol);
-  
-    // Regular move
-    if (Math.abs(rowDiff) === 1 && colDiff === 1) {
-      // Check direction based on piece color and king status
-      if (!piece.isKing) {
-        if (piece.color === 'red' && rowDiff > 0) return false;
-        if (piece.color === 'black' && rowDiff < 0) return false;
-      }
-      return true;
+// Function to validate if a move is legal based on checkers rules
+export const isValidMove = (from, toRow, toCol, gameState, currentPlayer) => {
+  // Check if destination square is empty
+  if (gameState[toRow][toCol] !== null) return false;
+
+  // Get the piece that's trying to move
+  const piece = gameState[from.row][from.col];
+  // Calculate absolute distance of movement in rows
+  const moveDistance = Math.abs(from.row - toRow);
+  // Calculate absolute distance of movement in columns
+  const colDistance = Math.abs(from.col - toCol);
+
+  // Check if it's a regular one-square diagonal move
+  if (moveDistance === 1 && colDistance === 1) {
+    // If the piece is a king, it can move in any direction
+    if (piece.isKing) return true;
+
+    // For regular pieces, determine direction based on piece color
+    const direction = piece.color === "red" ? -1 : 1;
+    // Verify piece is moving in the correct direction
+    return toRow - from.row === direction;
+  }
+
+  // Check if it's a jump move (two squares diagonally)
+  if (moveDistance === 2 && colDistance === 2) {
+    // Calculate position of jumped piece
+    const jumpedRow = (from.row + toRow) / 2;
+    const jumpedCol = (from.col + toCol) / 2;
+    // Get the piece being jumped over
+    const jumpedPiece = gameState[jumpedRow][jumpedCol];
+
+    // For kings, allow jumps in any direction
+    if (piece.isKing) {
+      return jumpedPiece && jumpedPiece.color !== piece.color;
     }
-  
-    // Jump move
-    if (Math.abs(rowDiff) === 2 && colDiff === 2) {
-      // Check direction for non-king pieces
-      if (!piece.isKing) {
-        if (piece.color === 'red' && rowDiff > 0) return false;
-        if (piece.color === 'black' && rowDiff < 0) return false;
-      }
-  
-      // Check if there's an opponent's piece to jump over
-      const jumpedRow = fromRow + rowDiff / 2;
-      const jumpedCol = fromCol + (toCol - fromCol) / 2;
-      const jumpedPiece = gameState[jumpedRow][jumpedCol];
-  
-      return jumpedPiece && jumpedPiece.color !== currentPlayer;
-    }
-  
-    return false;
-  };
+
+    // For regular pieces, check if the jump is in the correct direction
+    const direction = piece.color === "red" ? -1 : 1;
+    return (
+      jumpedPiece &&
+      jumpedPiece.color !== piece.color &&
+      toRow - from.row === 2 * direction
+    );
+  }
+
+  // Check for double jump (four squares diagonally)
+  if (moveDistance === 4 && colDistance === 4) {
+    return isValidDoubleJump(from, toRow, toCol, gameState, currentPlayer);
+  }
+
+  // If neither condition is met, move is invalid
+  return false;
+};
+
   
   // Get all possible moves for a piece
   export const getPossibleMoves = (row, col, gameState, currentPlayer) => {
@@ -100,3 +107,11 @@ export const isValidMove = (fromRow, fromCol, toRow, toCol, gameState, currentPl
         }
       }
     }}
+
+  export const mapGameStateToArray = (gameState) => {
+    return gameState.flat().map(piece => {
+      if (!piece) return '.';
+      if (piece.color === 'black') return piece.isKing ? 'B' : 'b';
+      if (piece.color === 'red') return piece.isKing ? 'R' : 'r';
+    });
+  };

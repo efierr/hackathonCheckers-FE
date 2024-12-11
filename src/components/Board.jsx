@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { isValidMove } from "../utils/moves";
+import { isValidMove, mapGameStateToArray } from "../utils/helpers";
 import Square from "./Square";
 import { getBestMove } from '../utils/api';
 import SuggestionBtn from './suggestionBtn';
@@ -44,6 +44,10 @@ const Board = () => {
 
     return initialState;
   });
+  
+  //console logs to visualize the game state and the array representation to be sent to AI
+  console.log(gameState);
+  console.log(mapGameStateToArray(gameState));
 
   // Effect to check for a winner after each move
   useEffect(() => {
