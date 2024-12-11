@@ -1,5 +1,5 @@
 import React from "react";
-import red from "../assets/red.png"
+import red from "../assets/blue.png"
 import yellow from "../assets/yellow.png"
 
 const Piece = ({ color, isKing }) => {
