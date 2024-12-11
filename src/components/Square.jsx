@@ -2,7 +2,7 @@ import React from "react";
 import Piece from "./Piece";
 import "../styles/Square.css";
 
-const Square = ({ isBlack, piece, onClick, highlight, isPossibleMove, currentPlayer }) => {
+const Square = ({ isBlack, piece, onClick, highlight, isPossibleMove, currentPlayer, mustJump }) => {
   const getSquareClassName = () => {
     let className = `square ${isBlack ? "black" : "white"}`;
     if (highlight) {
@@ -10,7 +10,9 @@ const Square = ({ isBlack, piece, onClick, highlight, isPossibleMove, currentPla
     }
     if (isPossibleMove) {
       className += ' possible-move';
-      console.log('Possible move at:', className);
+    }
+    if (mustJump) {
+      className += ' must-jump';
     }
     return className;
   };

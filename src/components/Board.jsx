@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { isValidMove, mapGameStateToArray, isHighlighted, isPossibleMove, getPossibleMoves, getJumpedPiecePosition, shouldCrownPiece } from "../utils/helpers";
+import { isValidMove, mapGameStateToArray, isHighlighted, isPossibleMove, getPossibleMoves, getJumpedPiecePosition, shouldCrownPiece, hasAvailableJumps } from "../utils/helpers";
 import Square from "./Square";
 import { getBestMove } from '../utils/api';
 import SuggestionBtn from './suggestionBtn';
@@ -16,6 +16,7 @@ const Board = () => {
   const [doubleJumpAvailable, setDoubleJumpAvailable] = useState(false);
   // State to store possible moves
   const [possibleMoves, setPossibleMoves] = useState([]);
+  const [piecesWithJumps, setPiecesWithJumps] = useState([]);
 
   // State for the game board, initialized with a function
   const [gameState, setGameState] = useState(() => {
@@ -102,6 +103,7 @@ const Board = () => {
   const handleSquareClick = (row, col) => {
     const piece = gameState[row][col];
 
+    // If a piece is already selected
     if (selectedPiece) {
       if (isPossibleMove(row, col, possibleMoves)) {
         // Handle the move logic here
@@ -121,11 +123,14 @@ const Board = () => {
           newGameState[jumpedPosition.row][jumpedPosition.col] = null;
 
           // Check for additional jumps
-          const additionalJumps = getPossibleMoves(row, col, newGameState, currentPlayer).filter(m => m.isJump);
+          const additionalJumps = getPossibleMoves(row, col, newGameState, currentPlayer)
+            .filter(m => m.isJump);
+          
           if (additionalJumps.length > 0) {
             // Allow for another jump
             setSelectedPiece({ row, col });
             setPossibleMoves(additionalJumps);
+            setGameState(newGameState);
             return;
           }
         }
@@ -137,18 +142,25 @@ const Board = () => {
 
         // Update the game state
         setGameState(newGameState);
-
-        // Switch players
+        setSelectedPiece(null);
+        setPossibleMoves([]);
         setCurrentPlayer(currentPlayer === 'red' ? 'black' : 'red');
+      } else {
+        setSelectedPiece(null);
+        setPossibleMoves([]);
+      }
+    } else if (piece?.color === currentPlayer) {
+      // Check if there are any jumps available for the current player
+      const hasJumps = hasAvailableJumps(gameState, currentPlayer);
+      const pieceMoves = getPossibleMoves(row, col, gameState, currentPlayer);
+      
+      // If jumps are available, only allow selecting pieces that can jump
+      if (hasJumps && !pieceMoves.some(move => move.isJump)) {
+        return; // Can't select this piece when jumps are available elsewhere
       }
 
-      // Clear selection and possible moves
-      setSelectedPiece(null);
-      setPossibleMoves([]);
-    } else if (piece?.color === currentPlayer) {
-      // Select piece
       setSelectedPiece({ row, col });
-      setPossibleMoves(getPossibleMoves(row, col, gameState, currentPlayer));
+      setPossibleMoves(pieceMoves);
     }
   };
 
@@ -163,6 +175,29 @@ const Board = () => {
     setCurrentPlayer(currentPlayer === "red" ? "black" : "red");
   };
 
+  // Add this function to find all pieces that can jump
+  const findPiecesWithJumps = (gameState, currentPlayer) => {
+    const pieces = [];
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const piece = gameState[row][col];
+        if (piece?.color === currentPlayer) {
+          const moves = getPossibleMoves(row, col, gameState, currentPlayer);
+          if (moves.some(move => move.isJump)) {
+            pieces.push({ row, col });
+          }
+        }
+      }
+    }
+    return pieces;
+  };
+
+  // Update this useEffect to check for pieces that must jump
+  useEffect(() => {
+    const pieces = findPiecesWithJumps(gameState, currentPlayer);
+    setPiecesWithJumps(pieces);
+  }, [gameState, currentPlayer]);
+
   // Function to create the board UI
   const createBoard = () => {
     const board = [];
@@ -171,9 +206,10 @@ const Board = () => {
       for (let col = 0; col < boardSize; col++) {
         // Determine if the square should be black
         const isBlack = (row + col) % 2 === 0;
-        // Check if this square contains the selected piece
-        const isSelected =
-          selectedPiece?.row === row && selectedPiece?.col === col;
+        const isSelected = selectedPiece?.row === row && selectedPiece?.col === col;
+        const mustJump = piecesWithJumps.some(
+          piece => piece.row === row && piece.col === col
+        );
 
         // Create a Square component for each position
         rowSquares.push(
@@ -186,6 +222,7 @@ const Board = () => {
             highlight={isHighlighted(row, col, selectedPiece)}
             isPossibleMove={isPossibleMove(row, col, possibleMoves)}
             currentPlayer={currentPlayer}
+            mustJump={mustJump}
           />
         );
       }
