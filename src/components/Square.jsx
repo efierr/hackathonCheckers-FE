@@ -9,4 +9,5 @@ const Square = ({ isBlack, piece, onClick }) => {
   );
 };
 
+
 export default Square;
