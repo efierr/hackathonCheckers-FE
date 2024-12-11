@@ -29,10 +29,6 @@ export const isValidMove = (from, toRow, toCol, gameState, currentPlayer) => {
     // Get the piece being jumped over
     const jumpedPiece = gameState[jumpedRow][jumpedCol];
 
-    if (moveDistance === 4 && colDistance === 4) {
-      return isValidDoubleJump(from, toRow, toCol, gameState, currentPlayer);
-    }
-
     // For kings, allow jumps in any direction
     if (piece.isKing) {
       return jumpedPiece && jumpedPiece.color !== piece.color;
@@ -47,44 +43,31 @@ export const isValidMove = (from, toRow, toCol, gameState, currentPlayer) => {
     );
   }
 
+  // Check for double jump (four squares diagonally)
+  if (moveDistance === 4 && colDistance === 4) {
+    return isValidDoubleJump(from, toRow, toCol, gameState, currentPlayer);
+  }
+
   // If neither condition is met, move is invalid
   return false;
 };
 
 // Function to execute a move and return new game state
 export const executeMove = (from, toRow, toCol, gameState) => {
-  // Create deep copy of current game state
-  const newGameState = gameState.map((row) => [...row]);
-
-  // Move piece to new position
-  newGameState[toRow][toCol] = { ...newGameState[from.row][from.col] };
-  // Remove piece from original position
+  const newGameState = [...gameState];
+  newGameState[toRow][toCol] = newGameState[from.row][from.col];
   newGameState[from.row][from.col] = null;
 
-  // Check if move was a jump (2 or 4 squares)
-  const moveDistance = Math.abs(toRow - from.row);
-  if (moveDistance === 2 || moveDistance === 4) {
-    // Remove jumped pieces
-    const midRow1 = (from.row + toRow) / 2;
-    const midCol1 = (from.col + toCol) / 2;
-    newGameState[midRow1][midCol1] = null;
+  const moveDistance = Math.abs(from.row - toRow);
+  const jumpMade = moveDistance === 2;
 
-    if (moveDistance === 4) {
-      const midRow2 = (midRow1 + toRow) / 2;
-      const midCol2 = (midCol1 + toCol) / 2;
-      newGameState[midRow2][midCol2] = null;
-    }
+  if (jumpMade) {
+    const jumpedRow = (from.row + toRow) / 2;
+    const jumpedCol = (from.col + toCol) / 2;
+    newGameState[jumpedRow][jumpedCol] = null;
   }
 
-  // Check if the piece should be kinged
-  if (newGameState[toRow][toCol].color === "red" && toRow === 0) {
-    newGameState[toRow][toCol].isKing = true;
-  } else if (newGameState[toRow][toCol].color === "black" && toRow === 7) {
-    newGameState[toRow][toCol].isKing = true;
-  }
-
-  // Return updated game state
-  return newGameState;
+  return { newGameState, jumpMade };
 };
 
 export const isValidDoubleJump = (
@@ -141,15 +124,17 @@ export const hasAdditionalJumps = (row, col, gameState, currentPlayer) => {
   return false;
 };
 
-export const finishTurn = (newGameState) => {
+export const finishTurn = (newGameState, currentPlayer) => {
   // Check for new kings
   newGameState = checkForKing(newGameState);
-  // Update the game state
-  setGameState(newGameState);
-  // Deselect the piece
-  setSelectedPiece(null);
+
   // Switch to the other player
-  setCurrentPlayer(currentPlayer === "red" ? "black" : "red");
-  // Reset double jump availability
-  setDoubleJumpAvailable(false);
+  const nextPlayer = currentPlayer === "red" ? "black" : "red";
+
+  return {
+    gameState: newGameState,
+    currentPlayer: nextPlayer,
+    selectedPiece: null,
+    jumpCount: 0,
+  };
 };
