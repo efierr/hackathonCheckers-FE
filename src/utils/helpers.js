@@ -39,31 +39,31 @@ const isValidKingMove = (from, toRow, toCol, gameState) => {
   const moveDistance = Math.abs(from.row - toRow);
   const colDistance = Math.abs(from.col - toCol);
 
-  // Must be diagonal movement (equal row and column distance)
-  if (moveDistance !== colDistance) return false;
+  // Must be diagonal movement and either 1 space (regular) or 2 spaces (capture)
+  if (moveDistance !== colDistance || moveDistance > 2) return false;
 
   // Get direction of movement
   const rowDirection = toRow > from.row ? 1 : -1;
   const colDirection = toCol > from.col ? 1 : -1;
 
-  // Check each square along the path
-  for (let i = 1; i < moveDistance; i++) {
-    const checkRow = from.row + (i * rowDirection);
-    const checkCol = from.col + (i * colDirection);
-    const checkSquare = gameState[checkRow][checkCol];
-
-    // If there's a piece in the path
-    if (checkSquare) {
-      // Only allow one jump over an opponent's piece
-      if (i === 1 && checkSquare.color !== piece.color && moveDistance === 2) {
-        return true;
-      }
-      return false;
-    }
+  // For captures (must be exactly distance of 2)
+  if (moveDistance === 2) {
+    const jumpedRow = from.row + rowDirection;
+    const jumpedCol = from.col + colDirection;
+    const jumpedPiece = gameState[jumpedRow][jumpedCol];
+    
+    // Can only capture if there's an opponent's piece and landing square is empty
+    return jumpedPiece && 
+           jumpedPiece.color !== piece.color && 
+           gameState[toRow][toCol] === null;
   }
 
-  // Allow move if path is clear
-  return true;
+  // For regular moves (must be exactly distance of 1)
+  if (moveDistance === 1) {
+    return gameState[toRow][toCol] === null;
+  }
+
+  return false;
 };
 
 // Main function to validate if a move is legal based on checkers rules
@@ -89,70 +89,75 @@ export const getPossibleMoves = (row, col, gameState, currentPlayer) => {
 
   if (!piece || piece.color !== currentPlayer) return [];
 
-  if (piece.isKing) {
-    // Check all diagonal directions
-    const directions = [
-      { rowDir: -1, colDir: -1 },
-      { rowDir: -1, colDir: 1 },
-      { rowDir: 1, colDir: -1 },
-      { rowDir: 1, colDir: 1 }
-    ];
+  // Directions for movement
+  const directions = piece.isKing ? 
+    [
+      { rowDir: -1, colDir: -1 }, // up-left
+      { rowDir: -1, colDir: 1 },  // up-right
+      { rowDir: 1, colDir: -1 },  // down-left
+      { rowDir: 1, colDir: 1 }    // down-right
+    ] :
+    piece.color === "red" ?
+      [{ rowDir: -1, colDir: -1 }, { rowDir: -1, colDir: 1 }] :  // red moves up
+      [{ rowDir: 1, colDir: -1 }, { rowDir: 1, colDir: 1 }];     // black moves down
 
+  // Check for available jumps first
+  let hasJumps = false;
+  directions.forEach(({ rowDir, colDir }) => {
+    const jumpRow = row + (2 * rowDir);
+    const jumpCol = col + (2 * colDir);
+    const jumpedRow = row + rowDir;
+    const jumpedCol = col + colDir;
+
+    if (isWithinBoard(jumpRow, jumpCol) && 
+        gameState[jumpRow][jumpCol] === null && 
+        gameState[jumpedRow][jumpedCol]?.color !== currentPlayer && 
+        gameState[jumpedRow][jumpedCol] !== null) {
+      hasJumps = true;
+      possibleMoves.push({
+        toRow: jumpRow,
+        toCol: jumpCol,
+        isJump: true
+      });
+    }
+  });
+
+  // If no jumps are available, check for regular moves
+  if (!hasJumps) {
     directions.forEach(({ rowDir, colDir }) => {
-      // Check each distance in this direction
-      for (let distance = 1; distance < 8; distance++) {
-        const newRow = row + (distance * rowDir);
-        const newCol = col + (distance * colDir);
+      let currentRow = row;
+      let currentCol = col;
 
-        // Stop checking this direction if we're off the board
-        if (!isWithinBoard(newRow, newCol)) break;
+      // For kings, keep checking in this direction until we hit something
+      if (piece.isKing) {
+        while (true) {
+          currentRow += rowDir;
+          currentCol += colDir;
 
-        // Check if this move is valid
-        if (isValidMove({ row, col }, newRow, newCol, gameState, currentPlayer)) {
-          // Determine if it's a jump move (distance of 2 with a piece in between)
-          const isJump = distance === 2 && gameState[row + rowDir][col + colDir] !== null;
+          // Stop if we're off the board
+          if (!isWithinBoard(currentRow, currentCol)) break;
+
+          // Stop if we hit any piece
+          if (gameState[currentRow][currentCol] !== null) break;
+
           possibleMoves.push({
-            toRow: newRow,
-            toCol: newCol,
-            isJump: isJump
+            toRow: currentRow,
+            toCol: currentCol,
+            isJump: false
           });
         }
+      } else {
+        // Regular pieces only move one space
+        const moveRow = row + rowDir;
+        const moveCol = col + colDir;
 
-        // Stop checking this direction if we hit any piece
-        if (gameState[newRow][newCol] !== null) break;
-      }
-    });
-  } else {
-    // Regular piece movement (unchanged)
-    const directions = piece.color === "red"
-      ? [{ rowDir: -1, colDir: -1 }, { rowDir: -1, colDir: 1 }]
-      : [{ rowDir: 1, colDir: -1 }, { rowDir: 1, colDir: 1 }];
-
-    directions.forEach(({ rowDir, colDir }) => {
-      // Regular move
-      const moveRow = row + rowDir;
-      const moveCol = col + colDir;
-
-      if (isWithinBoard(moveRow, moveCol) &&
-          isValidMove({ row, col }, moveRow, moveCol, gameState, currentPlayer)) {
-        possibleMoves.push({
-          toRow: moveRow,
-          toCol: moveCol,
-          isJump: false
-        });
-      }
-
-      // Jump move
-      const jumpRow = row + (2 * rowDir);
-      const jumpCol = col + (2 * colDir);
-
-      if (isWithinBoard(jumpRow, jumpCol) &&
-          isValidMove({ row, col }, jumpRow, jumpCol, gameState, currentPlayer)) {
-        possibleMoves.push({
-          toRow: jumpRow,
-          toCol: jumpCol,
-          isJump: true
-        });
+        if (isWithinBoard(moveRow, moveCol) && gameState[moveRow][moveCol] === null) {
+          possibleMoves.push({
+            toRow: moveRow,
+            toCol: moveCol,
+            isJump: false
+          });
+        }
       }
     });
   }
