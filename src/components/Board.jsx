@@ -17,6 +17,7 @@ const Board = () => {
   // State to store possible moves
   const [possibleMoves, setPossibleMoves] = useState([]);
   const [piecesWithJumps, setPiecesWithJumps] = useState([]);
+  const [suggestedMove, setSuggestedMove] = useState("")
 
   // State for the game board, initialized with a function
   const [gameState, setGameState] = useState(() => {
