@@ -30,48 +30,29 @@ const Board = () => {
   const [aiLastMove, setAiLastMove] = useState(null); // { from: {row, col}, to: {row, col} }
 
   // Remove the initial state setup from useState and make it a function
-  const initializeBoard = (playerColor) => {
+  const initializeBoard = () => {
     const initialState = Array(boardSize)
       .fill()
       .map(() => Array(8).fill(null));
 
-    // If player chose black, red (AI) pieces go on top
-    if (playerColor === 'black') {
-      // Place red (AI) pieces on the top three rows
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 8; col++) {
-          if ((row + col) % 2 === 0) {
-            initialState[row][col] = { color: "red", isKing: false };
-          }
-        }
-      }
-      // Place black (player) pieces on the bottom three rows
-      for (let row = 5; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-          if ((row + col) % 2 === 0) {
-            initialState[row][col] = { color: "black", isKing: false };
-          }
-        }
-      }
-    } else {
-      // Default setup (player is red)
-      // Place black (AI) pieces on the top three rows
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 8; col++) {
-          if ((row + col) % 2 === 0) {
-            initialState[row][col] = { color: "black", isKing: false };
-          }
-        }
-      }
-      // Place red (player) pieces on the bottom three rows
-      for (let row = 5; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-          if ((row + col) % 2 === 0) {
-            initialState[row][col] = { color: "red", isKing: false };
-          }
+    // Always place black pieces on top (rows 0-2)
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 8; col++) {
+        if ((row + col) % 2 === 0) {
+          initialState[row][col] = { color: "black", isKing: false };
         }
       }
     }
+
+    // Always place red pieces on bottom (rows 5-7)
+    for (let row = 5; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        if ((row + col) % 2 === 0) {
+          initialState[row][col] = { color: "red", isKing: false };
+        }
+      }
+    }
+
     return initialState;
   };
 
@@ -315,7 +296,7 @@ const Board = () => {
     setSuggestedMove(bestMove);
   };
 
-  // Modify the AI move useEffect
+  // Update the AI move useEffect
   useEffect(() => {
     const makeAIMove = async () => {
       const isAITurn = gameSettings.mode === 'ai' && 
@@ -326,6 +307,9 @@ const Board = () => {
       if (isAITurn) {
         setIsAIThinking(true);
         try {
+          // Log the current game state being sent to AI
+          console.log("Sending game state to AI:", mapGameStateToArray(gameState));
+          
           const aiColor = gameSettings.playerColor === 'red' ? 'black' : 'red';
           const suggestedAi = await getAIMoveWithDifficulty(
             mapGameStateToArray(gameState),
@@ -333,39 +317,44 @@ const Board = () => {
             gameSettings.difficulty
           );
           
-          console.log("AI move received:", suggestedAi);
-
           if (suggestedAi) {
             const [fromCoord, toCoord] = suggestedAi.split(" ");
             const [fromRow, fromCol] = fromCoord.split(",").map(Number);
             const [toRow, toCol] = toCoord.split(",").map(Number);
 
-            const newGameState = JSON.parse(JSON.stringify(gameState));
-            
-            newGameState[toRow][toCol] = newGameState[fromRow][fromCol];
-            newGameState[fromRow][fromCol] = null;
+            // Adjust coordinates
+            const adjustedFromRow = fromRow ;
+            const adjustedFromCol = fromCol-1 ;
+            const adjustedToRow = toRow ;
+            const adjustedToCol = toCol -1;
 
-            if (Math.abs(toRow - fromRow) === 2) {
-              const jumpedRow = (fromRow + toRow) / 2;
-              const jumpedCol = (fromCol + toCol) / 2;
-              newGameState[jumpedRow][jumpedCol] = null;
+            const moveResult = executeMove(
+              { row: adjustedFromRow, col: adjustedFromCol },
+              adjustedToRow,
+              adjustedToCol,
+              gameState
+            );
+
+            let newGameState = moveResult.newGameState;
+
+            if (newGameState[adjustedToRow]?.[adjustedToCol]) {
+              if (shouldCrownPiece(adjustedToRow, newGameState[adjustedToRow][adjustedToCol])) {
+                newGameState[adjustedToRow][adjustedToCol].isKing = true;
+              }
             }
-
-            if (shouldCrownPiece(toRow, newGameState[toRow][toCol])) {
-              newGameState[toRow][toCol].isKing = true;
-            }
-
-            setGameState(newGameState);
-            setIsPlayerTurn(true);
 
             // Set the AI's move for highlighting
             setAiLastMove({
-              from: { row: fromRow, col: fromCol },
-              to: { row: toRow, col: toCol }
+              from: { row: adjustedFromRow, col: adjustedFromCol },
+              to: { row: adjustedToRow, col: adjustedToCol }
             });
+
+            setGameState(newGameState);
+            setIsPlayerTurn(true);
           }
         } catch (error) {
           console.error('Error making AI move:', error);
+          console.error('Error details:', error.stack); // Add stack trace
         } finally {
           setIsAIThinking(false);
         }
@@ -384,7 +373,7 @@ const Board = () => {
           <button 
             onClick={() => {
               setGameSettings({...gameSettings, mode: 'local'});
-              setGameState(initializeBoard('red')); // Initialize for local play
+              setGameState(initializeBoard()); // Initialize for local play
               setIsPlayerTurn(true); // Red goes first in local play
             }}
           >
@@ -407,8 +396,8 @@ const Board = () => {
           <button 
             onClick={() => {
               setGameSettings({...gameSettings, playerColor: 'red'});
-              setIsPlayerTurn(true);
-              setGameState(initializeBoard('red')); // Initialize board for red
+              setIsPlayerTurn(false); // AI goes first when player picks red
+              setGameState(initializeBoard());
             }}
             className="color-btn red-btn"
           >
@@ -417,8 +406,8 @@ const Board = () => {
           <button 
             onClick={() => {
               setGameSettings({...gameSettings, playerColor: 'black'});
-              setIsPlayerTurn(false);
-              setGameState(initializeBoard('black')); // Initialize board for black
+              setIsPlayerTurn(true); // Player goes first when they pick black
+              setGameState(initializeBoard());
             }}
             className="color-btn black-btn"
           >
