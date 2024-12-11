@@ -40,3 +40,68 @@
 .read-the-docs {
   color: #888;
 }
+
+.board {
+  display: flex;
+  flex-direction: column;
+  border: 2px solid #333;
+}
+
+.board-row {
+  display: flex;
+}
+
+.square {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+}
+
+.square.black {
+  background-color: #769656;
+}
+
+.square.white {
+  background-color: #eeeed2;
+}
+
+.piece {
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.piece.black {
+  background-color: #000;
+}
+
+.piece.red {
+  background-color: #ff0000;
+}
+
+.crown {
+  color: gold;
+  font-size: 24px;
+}
+.game-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.status {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+.square.selected {
+  background-color: #baca44;
+}
