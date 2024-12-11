@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { isValidMove, mapGameStateToArray } from "../utils/helpers";
 import Square from "./Square";
+import { getBestMove } from '../utils/api';
+import SuggestionBtn from './suggestionBtn';
 
 const Board = () => {
   const boardSize = 8;
@@ -12,9 +14,11 @@ const Board = () => {
   const [winner, setWinner] = useState(null);
   //state to store when a double jump is available
   const [doubleJumpAvailable, setDoubleJumpAvailable] = useState(false);
+  const [suggestedMove, setSuggestedMove] = useState(null);
 
   // State for the game board, initialized with a function
   const [gameState, setGameState] = useState(() => {
+
     // Create an empty 8x8 board
     const initialState = Array(boardSize)
       .fill()
@@ -209,13 +213,21 @@ const Board = () => {
     return board;
   };
 
-  // Render the game board and status
+  const handleGetSuggestion = async () => {
+    const bestMove = await getBestMove(gameState, currentPlayer);
+    setSuggestedMove(bestMove);
+  };
+
   return (
     <div className="game-container">
       <div className="status">
         {winner ? winner : `Current Player: ${currentPlayer}`}
       </div>
       <div className="board">{createBoard()}</div>
+      <SuggestionBtn 
+        onGetSuggestion={handleGetSuggestion}
+        disabled={!!winner}
+      />
     </div>
   );
 };

@@ -7,6 +7,8 @@ export const executeMove = (from, toRow, toCol, gameState) => {
   const moveDistance = Math.abs(from.row - toRow);
   const jumpMade = moveDistance === 2;
 
+  
+
   if (jumpMade) {
     const jumpedRow = (from.row + toRow) / 2;
     const jumpedCol = (from.col + toCol) / 2;
