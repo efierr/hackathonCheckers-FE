@@ -140,3 +140,9 @@ export const finishTurn = (newGameState, currentPlayer) => {
     jumpCount: 0,
   };
 };
+
+export const chessToCoordinates = (notation) => {
+  const col = notation.charAt(0).charCodeAt(0) - 'a'.charCodeAt(0);
+  const row = 8 - parseInt(notation.charAt(1));
+  return { row, col };
+};
