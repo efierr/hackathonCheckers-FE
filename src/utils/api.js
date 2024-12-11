@@ -1,6 +1,7 @@
 import axios from "axios";
 
 const apiUrl = "http://localhost:3040/bestmove";
+const aiMoveUrl = "http://localhost:3040/botmove";
 
 export const getBestMove = async (board, playerColor) => {
     try {
@@ -9,6 +10,16 @@ export const getBestMove = async (board, playerColor) => {
         return response.data;
     } catch (error) {
         console.error("Error fetching best move:", error);
+    }
+};
+
+export const getAIMoveWithDifficulty = async (board, playerColor, difficultyLevel) => {
+    try {
+        const response = await axios.post(aiMoveUrl, { board, playerColor, difficulty: difficultyLevel });
+        console.log("AI Move response:", response.data);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching AI move with difficulty:", error);
     }
 };
 

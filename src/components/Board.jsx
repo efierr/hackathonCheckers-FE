@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { isValidMove, mapGameStateToArray, isHighlighted, isPossibleMove, getPossibleMoves, getJumpedPiecePosition, shouldCrownPiece, hasAvailableJumps } from "../utils/helpers";
 import Square from "./Square";
-import { getBestMove } from '../utils/api';
+import { getAIMoveWithDifficulty, getBestMove } from '../utils/api';
 import SuggestionBtn from './suggestionBtn';
 
 const Board = () => {
   const boardSize = 8;
   // State for the currently selected piece
   const [selectedPiece, setSelectedPiece] = useState(null);
-  // State to keep track of the current player
-  const [currentPlayer, setCurrentPlayer] = useState("red");
   // State to store the winner of the game
   const [winner, setWinner] = useState(null);
   //state to store when a double jump is available
@@ -18,6 +16,15 @@ const Board = () => {
   const [possibleMoves, setPossibleMoves] = useState([]);
   const [piecesWithJumps, setPiecesWithJumps] = useState([]);
   const [suggestedMove, setSuggestedMove] = useState("")
+  // Modified game settings state
+  const [gameSettings, setGameSettings] = useState({
+    mode: null,    // 'ai' or 'local'
+    playerColor: null,  // 'red' or 'black'
+    difficulty: null // easy medium hard
+  });
+  const [isAIThinking, setIsAIThinking] = useState(false);
+  // Add isPlayerTurn state
+  const [isPlayerTurn, setIsPlayerTurn] = useState(true); // Start with player's turn
 
   // State for the game board, initialized with a function
   const [gameState, setGameState] = useState(() => {
@@ -49,9 +56,9 @@ const Board = () => {
   });
   
   //console logs to visualize the game state and the array representation to be sent to AI
-  console.log(gameState);
-  console.log(mapGameStateToArray(gameState));
-
+  console.log("Game State:", gameState);
+  console.log("Array Representation:", mapGameStateToArray(gameState));
+  
   // Effect to check for a winner after each move
   useEffect(() => {
     const gameWinner = checkWinner();
@@ -102,6 +109,8 @@ const Board = () => {
 
   // Function to handle square clicks
   const handleSquareClick = (row, col) => {
+    if (!isPlayerTurn) return; // Use the state directly
+    
     const piece = gameState[row][col];
 
     // If a piece is already selected
@@ -124,7 +133,7 @@ const Board = () => {
           newGameState[jumpedPosition.row][jumpedPosition.col] = null;
 
           // Check for additional jumps
-          const additionalJumps = getPossibleMoves(row, col, newGameState, currentPlayer)
+          const additionalJumps = getPossibleMoves(row, col, newGameState, gameSettings.playerColor)
             .filter(m => m.isJump);
           
           if (additionalJumps.length > 0) {
@@ -145,15 +154,15 @@ const Board = () => {
         setGameState(newGameState);
         setSelectedPiece(null);
         setPossibleMoves([]);
-        setCurrentPlayer(currentPlayer === 'red' ? 'black' : 'red');
+        setIsPlayerTurn(false); // Switch to AI's turn
       } else {
         setSelectedPiece(null);
         setPossibleMoves([]);
       }
-    } else if (piece?.color === currentPlayer) {
+    } else if (piece?.color === gameSettings.playerColor) {
       // Check if there are any jumps available for the current player
-      const hasJumps = hasAvailableJumps(gameState, currentPlayer);
-      const pieceMoves = getPossibleMoves(row, col, gameState, currentPlayer);
+      const hasJumps = hasAvailableJumps(gameState, gameSettings.playerColor);
+      const pieceMoves = getPossibleMoves(row, col, gameState, gameSettings.playerColor);
       
       // If jumps are available, only allow selecting pieces that can jump
       if (hasJumps && !pieceMoves.some(move => move.isJump)) {
@@ -173,7 +182,7 @@ const Board = () => {
     // Deselect the piece
     setSelectedPiece(null);
     // Switch to the other player
-    setCurrentPlayer(currentPlayer === "red" ? "black" : "red");
+    setIsPlayerTurn(false);
   };
 
   // Add this function to find all pieces that can jump
@@ -195,9 +204,9 @@ const Board = () => {
 
   // Update this useEffect to check for pieces that must jump
   useEffect(() => {
-    const pieces = findPiecesWithJumps(gameState, currentPlayer);
+    const pieces = findPiecesWithJumps(gameState, gameSettings.playerColor);
     setPiecesWithJumps(pieces);
-  }, [gameState, currentPlayer]);
+  }, [gameState, gameSettings.playerColor]);
 
   // Function to create the board UI
   const createBoard = () => {
@@ -222,7 +231,7 @@ const Board = () => {
             onClick={() => handleSquareClick(row, col)}
             highlight={isHighlighted(row, col, selectedPiece)}
             isPossibleMove={isPossibleMove(row, col, possibleMoves)}
-            currentPlayer={currentPlayer}
+            currentPlayer={gameSettings.playerColor}
             mustJump={mustJump}
           />
         );
@@ -238,20 +247,151 @@ const Board = () => {
   };
 
   const handleGetSuggestion = async () => {
-    const bestMove = await getBestMove(gameState, currentPlayer);
+    const bestMove = await getBestMove(gameState, gameSettings.playerColor);
     setSuggestedMove(bestMove);
   };
 
+  // Modify the AI move useEffect
+  useEffect(() => {
+    const makeAIMove = async () => {
+      const isAITurn = gameSettings.mode === 'ai' && 
+                      gameSettings.difficulty && 
+                      !isPlayerTurn && 
+                      !winner;
+
+      if (isAITurn) {
+        setIsAIThinking(true);
+        try {
+          const aiColor = gameSettings.playerColor === 'red' ? 'black' : 'red';
+          const suggestedAi = await getAIMoveWithDifficulty(
+            mapGameStateToArray(gameState),
+            aiColor,
+            gameSettings.difficulty
+          );
+          
+          console.log("AI move received:", suggestedAi);
+
+          if (suggestedAi) {
+            const [fromCoord, toCoord] = suggestedAi.split(" ");
+            const [fromRow, fromCol] = fromCoord.split(",").map(Number);
+            const [toRow, toCol] = toCoord.split(",").map(Number);
+
+            const newGameState = JSON.parse(JSON.stringify(gameState));
+            
+            newGameState[toRow][toCol] = newGameState[fromRow][fromCol];
+            newGameState[fromRow][fromCol] = null;
+
+            if (Math.abs(toRow - fromRow) === 2) {
+              const jumpedRow = (fromRow + toRow) / 2;
+              const jumpedCol = (fromCol + toCol) / 2;
+              newGameState[jumpedRow][jumpedCol] = null;
+            }
+
+            if (shouldCrownPiece(toRow, newGameState[toRow][toCol])) {
+              newGameState[toRow][toCol].isKing = true;
+            }
+
+            setGameState(newGameState);
+            setIsPlayerTurn(true);
+          }
+        } catch (error) {
+          console.error('Error making AI move:', error);
+        } finally {
+          setIsAIThinking(false);
+        }
+      }
+    };
+
+    makeAIMove();
+  }, [gameSettings.mode, gameSettings.playerColor, gameSettings.difficulty, gameState, winner, isPlayerTurn]);
+
+  // Game mode selection UI
+  if (!gameSettings.mode) {
+    return (
+      <div className="game-mode-selection">
+        <h2>Select Game Mode</h2>
+        <button onClick={() => setGameSettings({...gameSettings, mode: 'local'})}>
+          Local Play
+        </button>
+        <button onClick={() => setGameSettings({...gameSettings, mode: 'ai'})}>
+          vs AI
+        </button>
+      </div>
+    );
+  }
+
+  // Color selection UI for AI mode
+  if (gameSettings.mode === 'ai' && !gameSettings.playerColor) {
+    return (
+      <div className="game-mode-selection">
+        <h2>Choose Your Color</h2>
+        <div className="color-selection">
+          <button 
+            onClick={() => {
+              setGameSettings({...gameSettings, playerColor: 'red'});
+              setIsPlayerTurn(true); // Red goes first
+            }}
+            className="color-btn red-btn"
+          >
+            Play as Red
+          </button>
+          <button 
+            onClick={() => {
+              setGameSettings({...gameSettings, playerColor: 'black'});
+              setIsPlayerTurn(false); // Black goes second, AI (red) goes first
+            }}
+            className="color-btn black-btn"
+          >
+            Play as Black
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Difficulty selection UI for AI mode
+  if (gameSettings.mode === 'ai' && gameSettings.playerColor && !gameSettings.difficulty) {
+    return (
+      <div className="game-mode-selection">
+        <h2>Select AI Difficulty</h2>
+        <div className="difficulty-selection">
+          <button 
+            onClick={() => setGameSettings({...gameSettings, difficulty: 'easy'})}
+            className="difficulty-btn"
+          >
+            Easy
+          </button>
+          <button 
+            onClick={() => setGameSettings({...gameSettings, difficulty: 'medium'})}
+            className="difficulty-btn"
+          >
+            Medium
+          </button>
+          <button 
+            onClick={() => setGameSettings({...gameSettings, difficulty: 'hard'})}
+            className="difficulty-btn"
+          >
+            Hard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Modified game board UI
   return (
     <div className="game-container">
       <div className="status">
-        {winner ? winner : `Current Player: ${currentPlayer}`}
+        {winner ? winner : isAIThinking ? "AI is thinking..." : 
+          `Current Turn: ${isPlayerTurn ? gameSettings.playerColor : 'AI'}`}
       </div>
       <div className="board">{createBoard()}</div>
-      <SuggestionBtn 
-        onGetSuggestion={handleGetSuggestion}
-        disabled={!!winner}
-      />
+      {gameSettings.mode === 'ai' && (
+        <SuggestionBtn 
+          onGetSuggestion={handleGetSuggestion}
+          disabled={!!winner || gameSettings.playerColor !== gameSettings.playerColor}
+        />
+      )}
     </div>
   );
 };
