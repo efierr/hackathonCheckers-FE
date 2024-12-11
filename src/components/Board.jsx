@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { isValidMove, mapGameStateToArray, isHighlighted, isPossibleMove, getPossibleMoves, getJumpedPiecePosition, shouldCrownPiece, hasAvailableJumps } from "../utils/helpers";
+import { isValidMove, isAIMove, mapGameStateToArray, isHighlighted, isPossibleMove, getPossibleMoves, shouldCrownPiece, hasAdditionalJumps } from "../utils/helpers";
+import { executeMove } from "../utils/moves";
 import Square from "./Square";
 import { getAIMoveWithDifficulty, getBestMove } from '../utils/api';
 import SuggestionBtn from './suggestionBtn';
@@ -24,36 +25,58 @@ const Board = () => {
   });
   const [isAIThinking, setIsAIThinking] = useState(false);
   // Add isPlayerTurn state
-  const [isPlayerTurn, setIsPlayerTurn] = useState(true); // Start with player's turn
+  const [isPlayerTurn, setIsPlayerTurn] = useState(null); // Start as null until color is selected
+  // Add state to track AI's last move
+  const [aiLastMove, setAiLastMove] = useState(null); // { from: {row, col}, to: {row, col} }
 
-  // State for the game board, initialized with a function
-  const [gameState, setGameState] = useState(() => {
-
-    // Create an empty 8x8 board
+  // Remove the initial state setup from useState and make it a function
+  const initializeBoard = (playerColor) => {
     const initialState = Array(boardSize)
       .fill()
       .map(() => Array(8).fill(null));
 
-    // Place black pieces on the top three rows
-    for (let row = 0; row < 3; row++) {
-      for (let col = 0; col < 8; col++) {
-        if ((row + col) % 2 === 0) {
-          initialState[row][col] = { color: "black", isKing: false };
+    // If player chose black, red (AI) pieces go on top
+    if (playerColor === 'black') {
+      // Place red (AI) pieces on the top three rows
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 8; col++) {
+          if ((row + col) % 2 === 0) {
+            initialState[row][col] = { color: "red", isKing: false };
+          }
+        }
+      }
+      // Place black (player) pieces on the bottom three rows
+      for (let row = 5; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          if ((row + col) % 2 === 0) {
+            initialState[row][col] = { color: "black", isKing: false };
+          }
+        }
+      }
+    } else {
+      // Default setup (player is red)
+      // Place black (AI) pieces on the top three rows
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 8; col++) {
+          if ((row + col) % 2 === 0) {
+            initialState[row][col] = { color: "black", isKing: false };
+          }
+        }
+      }
+      // Place red (player) pieces on the bottom three rows
+      for (let row = 5; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          if ((row + col) % 2 === 0) {
+            initialState[row][col] = { color: "red", isKing: false };
+          }
         }
       }
     }
-
-    // Place red pieces on the bottom three rows
-    for (let row = 5; row < 8; row++) {
-      for (let col = 0; col < 8; col++) {
-        if ((row + col) % 2 === 0) {
-          initialState[row][col] = { color: "red", isKing: false };
-        }
-      }
-    }
-
     return initialState;
-  });
+  };
+
+  // Initialize gameState as empty board
+  const [gameState, setGameState] = useState(Array(boardSize).fill().map(() => Array(8).fill(null)));
   
   //console logs to visualize the game state and the array representation to be sent to AI
   console.log("Game State:", gameState);
@@ -61,11 +84,14 @@ const Board = () => {
   
   // Effect to check for a winner after each move
   useEffect(() => {
-    const gameWinner = checkWinner();
-    if (gameWinner) {
-      setWinner(gameWinner);
+    // Only check for winner if game has started (playerColor and difficulty are set)
+    if (gameSettings.playerColor && gameSettings.difficulty) {
+      const gameWinner = checkWinner();
+      if (gameWinner) {
+        setWinner(gameWinner);
+      }
     }
-  }, [gameState]);
+  }, [gameState, gameSettings.playerColor, gameSettings.difficulty]);
 
   // Function to check if there's a winner
   const checkWinner = () => {
@@ -80,9 +106,12 @@ const Board = () => {
       });
     });
 
-    // Determine the winner based on piece count
-    if (redPieces === 0) return "Black Wins!";
-    if (blackPieces === 0) return "Red Wins!";
+    // Only declare winner if one side has no pieces left
+    // and we're not in initialization phase
+    if (gameSettings.playerColor && gameSettings.difficulty) {
+      if (redPieces === 0) return "Black Wins!";
+      if (blackPieces === 0) return "Red Wins!";
+    }
     return null;
   };
 
@@ -108,69 +137,84 @@ const Board = () => {
   };
 
   // Function to handle square clicks
-  const handleSquareClick = (row, col) => {
-    if (!isPlayerTurn) return; // Use the state directly
-    
-    const piece = gameState[row][col];
+  const handleSquareClick = async (row, col) => {
+    // Clear AI move highlight when player makes a move
+    if (gameSettings.mode === 'ai') {
+      setAiLastMove(null);
+    }
+
+    // If it's not the player's turn in AI mode, do nothing
+    if (gameSettings.mode === 'ai' && !isPlayerTurn) return;
+
+    const currentPlayer = gameSettings.mode === 'ai' 
+      ? gameSettings.playerColor 
+      : isPlayerTurn ? 'red' : 'black';
+
+    // If there's a piece that must jump, only allow that piece to move
+    if (piecesWithJumps.length > 0 && !doubleJumpAvailable) {
+      const mustJumpPiece = piecesWithJumps.find(p => p.row === row && p.col === col);
+      if (!selectedPiece && !mustJumpPiece) {
+        return; // Can't select other pieces when jumps are available
+      }
+    }
+
+    // If there's no selected piece
+    if (!selectedPiece) {
+      const piece = gameState[row][col];
+      // Check if the clicked square has a piece of the current player's color
+      if (piece && piece.color === currentPlayer) {
+        const moves = getPossibleMoves(row, col, gameState, currentPlayer);
+        if (moves.length > 0) {
+          setSelectedPiece({ row, col });
+          setPossibleMoves(moves);
+        }
+      }
+      return;
+    }
 
     // If a piece is already selected
-    if (selectedPiece) {
-      if (isPossibleMove(row, col, possibleMoves)) {
-        // Handle the move logic here
-        const newGameState = [...gameState];
-        const fromRow = selectedPiece.row;
-        const fromCol = selectedPiece.col;
+    if (isPossibleMove(row, col, possibleMoves)) {
+      const moveResult = executeMove(selectedPiece, row, col, gameState);
+      let newGameState = moveResult.newGameState;
 
-        // Move the piece
-        newGameState[row][col] = newGameState[fromRow][fromCol];
-        newGameState[fromRow][fromCol] = null;
+      // Check for king promotion
+      if (shouldCrownPiece(row, newGameState[row][col])) {
+        newGameState[row][col].isKing = true;
+      }
 
-        // Check if it's a jump move
-        const move = possibleMoves.find(move => move.toRow === row && move.toCol === col);
-        if (move.isJump) {
-          // Remove the jumped piece
-          const jumpedPosition = getJumpedPiecePosition(fromRow, fromCol, row, col);
-          newGameState[jumpedPosition.row][jumpedPosition.col] = null;
+      setGameState(newGameState);
 
-          // Check for additional jumps
-          const additionalJumps = getPossibleMoves(row, col, newGameState, gameSettings.playerColor)
-            .filter(m => m.isJump);
-          
-          if (additionalJumps.length > 0) {
-            // Allow for another jump
-            setSelectedPiece({ row, col });
-            setPossibleMoves(additionalJumps);
-            setGameState(newGameState);
-            return;
-          }
-        }
-
-        // Crown the piece if it reaches the opposite end
-        if (shouldCrownPiece(row, newGameState[row][col])) {
-          newGameState[row][col].isKing = true;
-        }
-
-        // Update the game state
-        setGameState(newGameState);
-        setSelectedPiece(null);
-        setPossibleMoves([]);
-        setIsPlayerTurn(false); // Switch to AI's turn
+      // Check for additional jumps
+      if (moveResult.jumpMade && hasAdditionalJumps(row, col, newGameState, currentPlayer)) {
+        setSelectedPiece({ row, col });
+        setPossibleMoves(getPossibleMoves(row, col, newGameState, currentPlayer));
+        setDoubleJumpAvailable(true);
       } else {
+        // End turn
+        setSelectedPiece(null);
+        setPossibleMoves([]);
+        setDoubleJumpAvailable(false);
+        setIsPlayerTurn(!isPlayerTurn);
+      }
+
+      // Update pieces that must jump for next turn
+      const nextPlayer = !isPlayerTurn ? 'red' : 'black';
+      const jumpingPieces = findPiecesWithJumps(newGameState, nextPlayer);
+      setPiecesWithJumps(jumpingPieces);
+    } else {
+      // If clicking on a different piece of the same color, select it instead
+      const piece = gameState[row][col];
+      if (piece && piece.color === currentPlayer && !doubleJumpAvailable) {
+        const moves = getPossibleMoves(row, col, gameState, currentPlayer);
+        if (moves.length > 0) {
+          setSelectedPiece({ row, col });
+          setPossibleMoves(moves);
+        }
+      } else {
+        // If clicking on an invalid square, deselect the piece
         setSelectedPiece(null);
         setPossibleMoves([]);
       }
-    } else if (piece?.color === gameSettings.playerColor) {
-      // Check if there are any jumps available for the current player
-      const hasJumps = hasAvailableJumps(gameState, gameSettings.playerColor);
-      const pieceMoves = getPossibleMoves(row, col, gameState, gameSettings.playerColor);
-      
-      // If jumps are available, only allow selecting pieces that can jump
-      if (hasJumps && !pieceMoves.some(move => move.isJump)) {
-        return; // Can't select this piece when jumps are available elsewhere
-      }
-
-      setSelectedPiece({ row, col });
-      setPossibleMoves(pieceMoves);
     }
   };
 
@@ -186,13 +230,13 @@ const Board = () => {
   };
 
   // Add this function to find all pieces that can jump
-  const findPiecesWithJumps = (gameState, currentPlayer) => {
+  const findPiecesWithJumps = (gameState, player) => {
     const pieces = [];
-    for (let row = 0; row < 8; row++) {
-      for (let col = 0; col < 8; col++) {
+    for (let row = 0; row < boardSize; row++) {
+      for (let col = 0; col < boardSize; col++) {
         const piece = gameState[row][col];
-        if (piece?.color === currentPlayer) {
-          const moves = getPossibleMoves(row, col, gameState, currentPlayer);
+        if (piece?.color === player) {
+          const moves = getPossibleMoves(row, col, gameState, player);
           if (moves.some(move => move.isJump)) {
             pieces.push({ row, col });
           }
@@ -202,47 +246,67 @@ const Board = () => {
     return pieces;
   };
 
-  // Update this useEffect to check for pieces that must jump
+  // Add an effect to check for required jumps at the start of each turn
   useEffect(() => {
-    const pieces = findPiecesWithJumps(gameState, gameSettings.playerColor);
-    setPiecesWithJumps(pieces);
-  }, [gameState, gameSettings.playerColor]);
+    if (!winner && gameState) {
+      const currentPlayer = isPlayerTurn ? 'red' : 'black';
+      const jumpingPieces = findPiecesWithJumps(gameState, currentPlayer);
+      setPiecesWithJumps(jumpingPieces);
+    }
+  }, [gameState, isPlayerTurn, winner]);
 
   // Function to create the board UI
   const createBoard = () => {
     const board = [];
-    for (let row = 0; row < boardSize; row++) {
-      const rowSquares = [];
-      for (let col = 0; col < boardSize; col++) {
-        // Determine if the square should be black
-        const isBlack = (row + col) % 2 === 0;
-        const isSelected = selectedPiece?.row === row && selectedPiece?.col === col;
-        const mustJump = piecesWithJumps.some(
-          piece => piece.row === row && piece.col === col
-        );
+    
+    // Add column labels (0-7) at the top
+    board.push(
+      <div key="top-labels" className="coordinate-row">
+        <div className="coordinate-label corner">x,y</div>
+        {[...Array(8)].map((_, i) => (
+          <div key={`top-${i}`} className="coordinate-label column-label">
+            {i}
+          </div>
+        ))}
+      </div>
+    );
 
-        // Create a Square component for each position
-        rowSquares.push(
+    // Create board rows with row labels
+    for (let row = 0; row < boardSize; row++) {
+      const squares = [];
+      
+      // Add row label
+      squares.push(
+        <div key={`row-${row}`} className="coordinate-label row-label">
+          {row}
+        </div>
+      );
+
+      // Add squares
+      for (let col = 0; col < boardSize; col++) {
+        squares.push(
           <Square
             key={`${row}-${col}`}
-            isBlack={isBlack}
+            isBlack={(row + col) % 2 === 0}
             piece={gameState[row][col]}
-            isSelected={isSelected}
+            isSelected={selectedPiece?.row === row && selectedPiece?.col === col}
             onClick={() => handleSquareClick(row, col)}
             highlight={isHighlighted(row, col, selectedPiece)}
             isPossibleMove={isPossibleMove(row, col, possibleMoves)}
+            isAIMove={gameSettings.mode === 'ai' ? isAIMove(row, col, aiLastMove) : false}
             currentPlayer={gameSettings.playerColor}
-            mustJump={mustJump}
+            mustJump={piecesWithJumps.some(p => p.row === row && p.col === col)}
           />
         );
       }
-      // Add each row to the board
+
       board.push(
-        <div key={row} className="board-row">
-          {rowSquares}
+        <div key={`row-${row}`} className="board-row">
+          {squares}
         </div>
       );
     }
+
     return board;
   };
 
@@ -293,6 +357,12 @@ const Board = () => {
 
             setGameState(newGameState);
             setIsPlayerTurn(true);
+
+            // Set the AI's move for highlighting
+            setAiLastMove({
+              from: { row: fromRow, col: fromCol },
+              to: { row: toRow, col: toCol }
+            });
           }
         } catch (error) {
           console.error('Error making AI move:', error);
@@ -310,12 +380,20 @@ const Board = () => {
     return (
       <div className="game-mode-selection">
         <h2>Select Game Mode</h2>
-        <button onClick={() => setGameSettings({...gameSettings, mode: 'local'})}>
-          Local Play
-        </button>
-        <button onClick={() => setGameSettings({...gameSettings, mode: 'ai'})}>
-          vs AI
-        </button>
+        <div className="mode-buttons">
+          <button 
+            onClick={() => {
+              setGameSettings({...gameSettings, mode: 'local'});
+              setGameState(initializeBoard('red')); // Initialize for local play
+              setIsPlayerTurn(true); // Red goes first in local play
+            }}
+          >
+            Local Play
+          </button>
+          <button onClick={() => setGameSettings({...gameSettings, mode: 'ai'})}>
+            vs AI
+          </button>
+        </div>
       </div>
     );
   }
@@ -329,7 +407,8 @@ const Board = () => {
           <button 
             onClick={() => {
               setGameSettings({...gameSettings, playerColor: 'red'});
-              setIsPlayerTurn(true); // Red goes first
+              setIsPlayerTurn(true);
+              setGameState(initializeBoard('red')); // Initialize board for red
             }}
             className="color-btn red-btn"
           >
@@ -338,7 +417,8 @@ const Board = () => {
           <button 
             onClick={() => {
               setGameSettings({...gameSettings, playerColor: 'black'});
-              setIsPlayerTurn(false); // Black goes second, AI (red) goes first
+              setIsPlayerTurn(false);
+              setGameState(initializeBoard('black')); // Initialize board for black
             }}
             className="color-btn black-btn"
           >
@@ -382,14 +462,18 @@ const Board = () => {
   return (
     <div className="game-container">
       <div className="status">
-        {winner ? winner : isAIThinking ? "AI is thinking..." : 
-          `Current Turn: ${isPlayerTurn ? gameSettings.playerColor : 'AI'}`}
+        {winner ? winner : 
+         gameSettings.mode === 'ai' ? 
+           (isAIThinking ? "AI is thinking..." : 
+            `Current Turn: ${isPlayerTurn ? gameSettings.playerColor : 'AI'}`) :
+           `Current Turn: ${isPlayerTurn ? 'Red' : 'Black'}`
+        }
       </div>
       <div className="board">{createBoard()}</div>
       {gameSettings.mode === 'ai' && (
         <SuggestionBtn 
           onGetSuggestion={handleGetSuggestion}
-          disabled={!!winner || gameSettings.playerColor !== gameSettings.playerColor}
+          disabled={!!winner || !isPlayerTurn}
         />
       )}
     </div>

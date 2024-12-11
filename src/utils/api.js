@@ -15,7 +15,11 @@ export const getBestMove = async (board, playerColor) => {
 
 export const getAIMoveWithDifficulty = async (board, playerColor, difficultyLevel) => {
     try {
-        const response = await axios.post(aiMoveUrl, { board, playerColor, difficulty: difficultyLevel });
+        const response = await axios.post(aiMoveUrl, {
+            board: mapGameStateToArray(board),
+            playerColor,
+            difficulty: difficultyLevel
+        });
         console.log("AI Move response:", response.data);
         return response.data;
     } catch (error) {

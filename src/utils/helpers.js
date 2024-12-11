@@ -215,3 +215,46 @@ export const getPossibleMoves = (row, col, gameState, currentPlayer) => {
   };
 
   
+
+        // Helper function to check if a square is part of the AI's last move
+        export const isAIMove = (row, col, aiLastMove) => {
+          if (!aiLastMove) return false;
+          return (
+            (row === aiLastMove.from.row && col === aiLastMove.from.col) ||
+            (row === aiLastMove.to.row && col === aiLastMove.to.col)
+          );
+        };
+        
+// Add this function to helpers.js
+export const hasAdditionalJumps = (row, col, gameState, currentPlayer) => {
+  const piece = gameState[row][col];
+  if (!piece || piece.color !== currentPlayer) return false;
+
+  const directions = piece.isKing ? 
+    [[-2, -2], [-2, 2], [2, -2], [2, 2]] :  // King can move in all directions
+    piece.color === 'red' ? 
+      [[-2, -2], [-2, 2]] :  // Red moves up
+      [[2, -2], [2, 2]];     // Black moves down
+
+  for (const [rowDir, colDir] of directions) {
+    const newRow = row + rowDir;
+    const newCol = col + colDir;
+    const jumpedRow = row + rowDir/2;
+    const jumpedCol = col + colDir/2;
+
+    // Check if the jump is within board boundaries
+    if (!isWithinBoard(newRow, newCol)) continue;
+
+    // Check if there's an opponent's piece to jump over
+    const jumpedPiece = gameState[jumpedRow][jumpedCol];
+    if (!jumpedPiece || jumpedPiece.color === currentPlayer) continue;
+
+    // Check if landing square is empty
+    if (gameState[newRow][newCol] === null) {
+      return true;
+    }
+  }
+
+  return false;
+};
+        

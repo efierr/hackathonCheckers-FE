@@ -97,7 +97,6 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
 }
 
 .status {
@@ -108,4 +107,75 @@
 
 .square.selected {
   background-color: #baca44;
+}
+
+.coordinate-row {
+  display: flex;
+  margin-bottom: 5px;
+}
+
+.board-row {
+  display: flex;
+  align-items: center;
+}
+
+.coordinate-label {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: bold;
+  background: #2c3e50;
+  color: white;
+  margin: 1px;
+  border-radius: 4px;
+}
+
+.corner {
+  background: #34495e;
+}
+
+.row-label {
+  margin-right: 4px;
+}
+
+.column-label {
+  margin-bottom: 4px;
+}
+
+.board {
+  padding: 10px;
+  background: #34495e;
+  border-radius: 8px;
+  display: inline-block;
+}
+
+.square.ai-move {
+  position: relative;
+  overflow: hidden;
+}
+
+.square.ai-move::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 215, 0, 0.3); /* Golden highlight */
+  border: 2px solid gold;
+  pointer-events: none;
+}
+
+/* Optional: Add animation */
+@keyframes aiMoveGlow {
+  0% { box-shadow: 0 0 5px gold; }
+  50% { box-shadow: 0 0 15px gold; }
+  100% { box-shadow: 0 0 5px gold; }
+}
+
+.square.ai-move {
+  animation: aiMoveGlow 2s infinite;
 }
