@@ -76,7 +76,6 @@ export const isValidMove = (from, toRow, toCol, gameState, currentPlayer) => {
         }
       });
     });
-  
     return possibleMoves;
   };
   
